@@ -1,0 +1,94 @@
+#!/usr/bin/make -f
+# Set environment variables
+
+# this makefile follows the below conventions for variables denoting files and directories
+# all directory names must end with a terminal '/' character
+# file names never end in terminal '/' character
+
+
+#===================================================
+
+SHELL = /bin/bash
+
+# set this variable to any value to make shared libraries (cleaning existing build files may be necessary)
+SHARED =
+
+#===================================================
+# Compile commands
+#===================================================
+CC       = gcc
+CLIBS    =
+CFLAGS   = -g -O -Wall
+ifdef SHARED
+CFLAGS  += -fpic -fpie
+endif
+INCLUDES =
+ifdef SHARED
+RPATH    =
+endif
+#===================================================
+# Build Directories
+#===================================================
+srcdir     = src/
+buildir    = build/
+#===================================================
+prog_name = main
+#===================================================
+# Source and target objects
+#===================================================
+SRCS      = $(wildcard $(srcdir)*.c)
+OBJS      = $(patsubst $(srcdir)%.c,$(buildir)%.o,$(SRCS))
+MKS       = $(patsubst $(srcdir)%.c,$(buildir)%.mk,$(SRCS))
+#=====================================================
+
+build: $(buildir)$(prog_name)
+.PHONY: build
+
+debug:
+	@echo -e "\e[35mBuild Directories \e[0m: $(DIRS)"
+	@echo -e "\e[35mSource Directories\e[0m: $(SRCDIRS)"
+	@echo -e "\e[35mLibdepconf Files  \e[0m: $(LIBCONFS)"
+	@echo -e "\e[35mBuild Files       \e[0m: $(LIBS)"
+	@echo    "#-------------------------------------------#"
+	@echo -e "\e[35mSource Files     \e[0m: $(SRCS)"
+	@echo -e "\e[35mMake Files       \e[0m: $(MKS)"
+	@echo -e "\e[35mObject Files     \e[0m: $(OBJS)"
+	@echo -e "\e[35mmakeflages;makegoals\e[0m:$(MAKEFLAGS) ; $(MAKECMDGOALS)"
+.PHONY:debug
+
+installmode:
+.PHONY:installmode
+
+#=====================================================
+
+ifdef INSTALLMODE
+$(buildir)$(prog_name): $(OBJS) installmode
+else
+$(buildir)$(prog_name): $(OBJS) $(INSTALLSTAMP)
+endif
+ifndef SHARED
+	$(CC) $(CFLAGS) -o $@ $(INCLUDES) $(OBJS) $(CLIBS)
+else
+	$(CC) $(filter-out -pic -fpic -Fpic,$(CFLAGS)) -o $@ $(INCLUDES) -Wl,-rpath="$(RPATH)" $(OBJS) $(CLIBS)
+endif
+
+$(buildir)%.mk : $(srcdir)%.c
+	@mkdir -p $(@D)
+ifndef SHARED
+	@$(CC) -M $< | awk '{ if(/^$(subst .mk,,$(@F))/) { printf("%s%s\n","$(@D)/",$$0) } else { print $$0 } } END { printf("\t$(CC) $(CFLAGS) -c -o $(buildir)$*.o $<")}' > $@
+else
+	@$(CC) -M $< | awk '{ if(/^$(subst .mk,,$(@F))/) { printf("%s%s\n","$(@D)/",$$0) } else { print $$0 } } END { printf("\t$(CC) $(filter-out -Fpie -fpie -pie -pic -fpic -Fpic,$(CFLAGS)) -c -o $(buildir)$*.o $<")}' > $@
+endif
+	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
+
+ifneq ($(strip $(filter build $(buildir)$(prog_name) $(OBJS),$(MAKECMDGOALS))),)
+include $(MKS)
+else ifeq ($(MAKECMDGOALS),)
+include $(MKS)
+endif
+
+#=====================================================
+
+clean:
+	rm -f $(buildir)
+.PHONY:clean
