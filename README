@@ -59,3 +59,4 @@ bindir		(defualt '$(prefix)/bin')
 libdir		(defualt '$(prefix)/lib')
 ...
 etc
+

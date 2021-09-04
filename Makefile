@@ -17,7 +17,7 @@ SHARED =
 #===================================================
 CC       = gcc
 CLIBS    =
-CFLAGS   = -g -O -Wall
+CFLAGS   = -g -O -Wall -Wextra
 ifdef SHARED
 CFLAGS  += -fpic -fpie
 endif
@@ -63,6 +63,7 @@ override INSTALLSTAMP  = installstamp.txt
 # Source and target objects
 #====================================================
 SRCS      = $(wildcard $(srcdir)*/*.c)
+MAIN_SRCS = $(wildcard $(srcdir)*.c)
 DIRS      = $(addprefix $(buildir),$(subst $(srcdir),,$(SRCDIRS)))
 SRCDIRS   = $(sort $(dir $(SRCS)))
 OBJS      = $(patsubst %.c,%.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
@@ -113,7 +114,7 @@ debug:
 	@echo -e "\e[35mLibdepconf Files  \e[0m: $(LIBCONFS)"
 	@echo -e "\e[35mBuild Files       \e[0m: $(LIBS)"
 	@echo    "#-------------------------------------------#"
-	@echo -e "\e[35mSource Files     \e[0m: $(SRCS)"
+	@echo -e "\e[35mSource Files     \e[0m: $(SRCS) $(MAIN_SRCS)"
 	@echo -e "\e[35mMake Files       \e[0m: $(MKS)"
 	@echo -e "\e[35mObject Files     \e[0m: $(OBJS)"
 .PHONY:debug
@@ -164,11 +165,11 @@ CLIBS += $(sort $(CLIBS_DEP))
 #============
 ifneq ($(strip $(filter install install-bin,$(MAKECMDGOALS))),)
 export override INSTALLMODE = true
-$(buildir)$(prog_name) : $(LIBS) installmode
+$(buildir)$(prog_name) : $(LIBS) installmode $(MAIN_SRCS)
 else
 export override INSTALLMODE =
-$(buildir)$(prog_name): INSTALLSTAMP_TMP = $(buildir)$(INSTALLSTAMP)
-$(buildir)$(prog_name): $(LIBS) $(buildir)$(INSTALLSTAMP)
+$(buildir)$(prog_name): INSTALLSTAMP_TMP = $(buildir)$(INSTALLSTAMP) $(addsuffix $(TIMESTAMP),$(DIRS))
+$(buildir)$(prog_name): $(LIBS) $(buildir)$(INSTALLSTAMP) $(MAIN_SRCS)
 endif
 	$(MAKE) -e -f Makefile2 $(patsubst INSTALLSTAMP=%,,$(MAKEFLAGS)) INSTALLSTAMP="$(INSTALLSTAMP_TMP)"
 
