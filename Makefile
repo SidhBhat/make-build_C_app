@@ -65,7 +65,7 @@ override INSTALLSTAMP  = installstamp.txt
 SRCS      = $(wildcard $(srcdir)*/*.c)
 DIRS      = $(addprefix $(buildir),$(subst $(srcdir),,$(SRCDIRS)))
 SRCDIRS   = $(sort $(dir $(SRCS)))
-OBJS      = $(patsubst %.c,%.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+OBJS      = $(patsubst %.c,%.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 ifndef SHARED
 LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
@@ -179,9 +179,9 @@ $(buildir)$(INSTALLSTAMP):
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
 ifndef SHARED
-	@$(CC) -M $< -MT $(buildir)$*.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
+	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
 else
-	@$(CC) -M $< -MT $(buildir)$*.o | awk '{ print $$0 } END { printf("\t$(CC) $(filter-out -pie -fpie -Fpie,$(CFLAGS)) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
+	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(filter-out -pie -fpie -Fpie,$(CFLAGS)) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
 endif
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 

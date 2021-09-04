@@ -37,7 +37,7 @@ prog_name = main
 # Source and target objects
 #===================================================
 SRCS      = $(wildcard $(srcdir)*.c)
-OBJS      = $(patsubst $(srcdir)%.c,$(buildir)%.o,$(SRCS))
+OBJS      = $(patsubst $(srcdir)%.c,$(buildir)%.c.o,$(SRCS))
 MKS       = $(patsubst $(srcdir)%.c,$(buildir)%.mk,$(SRCS))
 #=====================================================
 
@@ -75,9 +75,9 @@ endif
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
 ifndef SHARED
-	@$(CC) -M $< -MT $(buildir)$*.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) -c -o $(buildir)$*.o $<")}' > $@
+	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) -c -o $(buildir)$*.c.o $<")}' > $@
 else
-	@$(CC) -M $< -MT $(buildir)$*.o | awk '{ print $$0 } END { printf("\t$(CC) $(filter-out -Fpie -fpie -pie -pic -fpic -Fpic,$(CFLAGS)) -c -o $(buildir)$*.o $<")}' > $@
+	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(filter-out -Fpie -fpie -pie -pic -fpic -Fpic,$(CFLAGS)) -c -o $(buildir)$*.c.o $<")}' > $@
 endif
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
