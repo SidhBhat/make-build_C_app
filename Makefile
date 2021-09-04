@@ -77,7 +77,7 @@ CLIBS_DEP :=
 -include $(LIBCONFS)
 #=====================================================
 
-build: $(LIBS)
+build: build-obj $(LIBS)
 .PHONY:build
 
 .DEFUALT_GOAL:build
@@ -179,9 +179,9 @@ $(buildir)$(INSTALLSTAMP):
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
 ifndef SHARED
-	@$(CC) -M $< | awk '{ if(/^$(subst .mk,,$(@F))/) { printf("%s%s\n","$(@D)/",$$0) } else { print $$0 } } END { printf("\t$(CC) $(CFLAGS) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.o $<\n\ttouch $(@D)/$(TIMESTAMP)")}' > $@
+	@$(CC) -M $< -MT $(buildir)$*.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
 else
-	@$(CC) -M $< | awk '{ if(/^$(subst .mk,,$(@F))/) { printf("%s%s\n","$(@D)/",$$0) } else { print $$0 } } END { printf("\t$(CC) $(filter-out -pie -fpie -Fpie,$(CFLAGS)) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.o $<\n\ttouch $(@D)/$(TIMESTAMP)")}' > $@
+	@$(CC) -M $< -MT $(buildir)$*.o | awk '{ print $$0 } END { printf("\t$(CC) $(filter-out -pie -fpie -Fpie,$(CFLAGS)) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
 endif
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
@@ -208,6 +208,9 @@ $(buildir): build-obj ;
 #=====================================================
 
 hash = \#
+
+create-makes: $(MKS)
+.PHONY:create-makes
 
 clean:
 	rm -rf $(buildir)
