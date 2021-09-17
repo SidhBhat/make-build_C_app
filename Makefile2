@@ -56,15 +56,15 @@ debug:
 	@echo -e "\e[35mmakeflages;makegoals\e[0m:$(MAKEFLAGS) ; $(MAKECMDGOALS)"
 .PHONY:debug
 
-installmode:
-.PHONY:installmode
+empty:
+.PHONY: empty
 
 #=====================================================
 
 ifdef INSTALLMODE
-$(buildir)$(prog_name): $(OBJS) installmode
+$(buildir)$(prog_name): $(OBJS) empty
 else
-$(buildir)$(prog_name): $(OBJS) $(INSTALLSTAMP)
+$(buildir)$(prog_name): $(OBJS) $(COMPILESTAMP)
 endif
 ifndef SHARED
 	$(CC) $(CFLAGS) -o $@ $(INCLUDES) $(OBJS) $(CLIBS)

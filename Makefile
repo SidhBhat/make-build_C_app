@@ -17,7 +17,7 @@ SHARED =
 #===================================================
 CC       = gcc
 CLIBS    =
-CFLAGS   = -g -O -Wall -Wextra
+CFLAGS   = -g -O -Wall
 ifdef SHARED
 CFLAGS  += -fpic -fpie
 endif
@@ -55,8 +55,8 @@ override INSTALL_DATA     = $(INSTALL) -m 644
 override LIBCONFIGFILE = config.mk
 override MAINCONFIG    = libconfig.mk
 override TIMESTAMP     = timestamp.txt
-#existance of file INSTALLSTAMP instructs to go in non-installmode
-override INSTALLSTAMP  = installstamp.txt
+#updating of COMPLIESTAMP instucts to recompile the file
+override COMPILESTAMP  = compilestamp.txt
 #=======================================================
 # DO NOT MODIFY VARIABLES!
 #====================================================
@@ -67,7 +67,9 @@ MAIN_SRCS = $(wildcard $(srcdir)*.c)
 DIRS      = $(addprefix $(buildir),$(subst $(srcdir),,$(SRCDIRS)))
 SRCDIRS   = $(sort $(dir $(SRCS)))
 OBJS      = $(patsubst %.c,%.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+OBJS_S    = $(patsubst %.c,%-shared.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 ifndef SHARED
 LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
 else
@@ -78,7 +80,7 @@ CLIBS_DEP :=
 -include $(LIBCONFS)
 #=====================================================
 
-build: build-obj $(LIBS)
+build: $(LIBS)
 .PHONY:build
 
 .DEFUALT_GOAL:build
@@ -105,7 +107,7 @@ install-bin: test
 
 #phony to go in install mode
 installmode:
-	rm -f $(buildir)$(INSTALLSTAMP)
+	rm -f $(buildir)$(COMPILESTAMP)
 .PHONY:installmode
 
 debug:
@@ -116,6 +118,7 @@ debug:
 	@echo    "#-------------------------------------------#"
 	@echo -e "\e[35mSource Files     \e[0m: $(SRCS) $(MAIN_SRCS)"
 	@echo -e "\e[35mMake Files       \e[0m: $(MKS)"
+	@echo -e "\e[35mMake Files Shared\e[0m: $(MKS_S)"	
 	@echo -e "\e[35mObject Files     \e[0m: $(OBJS)"
 .PHONY:debug
 
@@ -141,8 +144,15 @@ help:
 test: $(buildir)$(prog_name)
 .PHONY:test
 
-build-obj: $(OBJS)
-.PHONY:build-obj
+build-obj: build-obj-static build-obj-shared ;
+.PHONY: build-obj
+
+build-obj-static: $(OBJS)
+.PHONY:build-obj-static
+
+build-obj-shared: $(OBJS_S)
+.PHONY:build-obj-shared
+
 
 -include $(srcdir)$(MAINCONFIG)
 
@@ -168,49 +178,64 @@ export override INSTALLMODE = true
 $(buildir)$(prog_name) : $(LIBS) installmode $(MAIN_SRCS)
 else
 export override INSTALLMODE =
-$(buildir)$(prog_name): INSTALLSTAMP_TMP = $(buildir)$(INSTALLSTAMP) $(addsuffix $(TIMESTAMP),$(DIRS))
-$(buildir)$(prog_name): $(LIBS) $(buildir)$(INSTALLSTAMP) $(MAIN_SRCS)
+$(buildir)$(prog_name): COMPILESTAMP_TMP = $(buildir)$(COMPILESTAMP) $(addsuffix $(TIMESTAMP),$(DIRS))
+$(buildir)$(prog_name): $(LIBS) $(buildir)$(COMPILESTAMP) $(MAIN_SRCS)
 endif
-	$(MAKE) -e -f Makefile2 $(patsubst INSTALLSTAMP=%,,$(MAKEFLAGS)) INSTALLSTAMP="$(INSTALLSTAMP_TMP)"
+	$(MAKE) -e -f Makefile2 $(patsubst INSTALLSTAMP=%,,$(MAKEFLAGS)) COMPILESTAMP="$(COMPILESTAMP_TMP)"
 
-$(buildir)$(INSTALLSTAMP):
+$(buildir)$(COMPILESTAMP): $(LIBS)
 	touch $@
+
 #============
 
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
-ifndef SHARED
-	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
-else
 	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(filter-out -pie -fpie -Fpie,$(CFLAGS)) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
-endif
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
-ifneq ($(strip $(filter build build-obj test install install-bin install-libs install $(buildir)$(prog_name) $(LIBS) $(OBJS),$(MAKECMDGOALS))),)
-include $(MKS)
-else ifeq ($(MAKECMDGOALS),)
-include $(MKS)
+$(buildir)%-shared.mk : $(srcdir)%.c
+	@mkdir -p $(@D)
+	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*-shared.c.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
+	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
+
+ifdef SHARED
+MAKE_BUILD_FILES=$(MKS_S)
+else
+MAKE_BUILD_FILES=$(MKS)
 endif
 
-ifndef SHARED
+ifneq ($(strip $(filter build build-obj test install install-bin install-libs install $(buildir)$(prog_name) $(LIBS) $(OBJS),$(MAKECMDGOALS))),)
+include $(MAKE_BUILD_FILES)
+else ifeq ($(MAKECMDGOALS),)
+include $(MAKE_BUILD_FILES)
+endif
+
 lib%.a: %/$(TIMESTAMP) | $(buildir)
 	$(AR) $(ARFLAGS) $@ $(filter $*/%.o,$(OBJS)) $(if $(CLIBS_$(notdir $*)),-l"$(strip $(CLIBS_$(notdir $*)))")
-else
 lib%.so: %/$(TIMESTAMP) | $(buildir)
-	$(CC) $(filter-out -pie -fpie -Fpie -pic -fpic -Fpic,$(CFLAGS)) --shared $(filter $*/%.o,$(OBJS)) $(strip $(CLIBS_$(notdir $*))) -o $@
-endif
+	$(CC) $(filter-out -pie -fpie -Fpie -pic -fpic -Fpic,$(CFLAGS)) --shared $(filter $*/%.o,$(OBJS_S)) $(strip $(CLIBS_$(notdir $*))) -o $@
 
 %/$(TIMESTAMP): $(buildir) ;
 
 .SECONDARY: $(addsuffix $(TIMESTAMP),$(DIRS))
 
-$(buildir): build-obj ;
+ifdef SHARED
+$(buildir): build-obj-shared ;
+else
+$(buildir) : build-obj-static ;
+endif
 
 #=====================================================
 
 hash = \#
 
-create-makes: $(MKS)
+create-makes: create-makes-shared create-makes-static
+.PHONY:create-makes
+
+create-makes-shared: $(MKS)
+.PHONY:create-makes-static
+
+create-makes-static: $(MKS_S)
 .PHONY:create-makes
 
 clean:
