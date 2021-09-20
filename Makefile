@@ -11,6 +11,9 @@ SHELL = /bin/bash
 
 # set this variable to any value to make shared libraries (cleaning existing build files may be necessary)
 SHARED =
+ifdef SHARED
+SHARED = true
+endif
 
 #===================================================
 # Compile commands
@@ -70,14 +73,17 @@ OBJS      = $(patsubst %.c,%.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRC
 OBJS_S    = $(patsubst %.c,%-shared.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
-ifndef SHARED
-LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
-else
-LIBS      = $(addprefix $(buildir),$(addsuffix .so,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
-endif
+
 LIBCONFS  = $(addsuffix $(LIBCONFIGFILE),$(SRCDIRS))
-CLIBS_DEP :=
 -include $(LIBCONFS)
+ifdef SHARED
+LIBS      = $(addprefix $(buildir),$(addsuffix .so,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
+else
+ifndef SHAREDCOSTOM
+LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
+endif
+endif
+CLIBS_DEP :=
 #=====================================================
 
 build: $(LIBS)
@@ -201,7 +207,11 @@ $(buildir)%-shared.mk : $(srcdir)%.c
 ifdef SHARED
 MAKE_BUILD_FILES=$(MKS_S)
 else
+ifndef SHAREDCOSTOM
 MAKE_BUILD_FILES=$(MKS)
+else
+MAKE_BUILD_FILES=$(MKS)	$(MKS_S)
+endif
 endif
 
 ifneq ($(strip $(filter build build-obj test install install-bin install-libs install $(buildir)$(prog_name) $(LIBS) $(OBJS),$(MAKECMDGOALS))),)
@@ -222,7 +232,11 @@ lib%.so: %/$(TIMESTAMP) | $(buildir)
 ifdef SHARED
 $(buildir): build-obj-shared ;
 else
+ifndef SHAREDCOSTOM
 $(buildir) : build-obj-static ;
+else
+$(buildir) : build-obj-static build-obj-shared;
+endif
 endif
 
 #=====================================================
@@ -265,39 +279,42 @@ generate-config-files: generate-libdependancy-config-files generate-testlibconf-
 remove-config-files: remove-libdependancy-config-files remove-testlibconf-file
 .PHONY:remove-config-files
 
-generate-testlibconf-file:
-ifndef SHARED
-	@echo -e "$(hash)!/usr/bin/make -f"\
-	"\n$(hash) Make config file for linker options, do not rename."\
-	"\n$(hash) The value of the variable must be LIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
-	"\nCLIBS = -L./$(buildir) $(addprefix -l,$(patsubst $(buildir)lib%.a,%,$(LIBS)))"\
-	"\nINCLUDES =" > "$(srcdir)$(MAINCONFIG)"
-else
-	@echo -e "$(hash)!/usr/bin/make -f"\
-	"\n$(hash) Make config file for linker options, do not rename."\
-	"\n$(hash) The value of the variable must be LIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
-	"\nCLIBS = -L./$(buildir) $(addprefix -l,$(patsubst $(buildir)lib%.so,%,$(LIBS)))"\
-	"\nINCLUDES =" > "$(srcdir)$(MAINCONFIG)"
-endif
+generate-testlibconf-file: $(srcdir)$(MAINCONFIG)
 .PHONY:generate-testlibconf-file
+
+$(srcdir)$(MAINCONFIG):
+	@echo -e "$(hash)!/usr/bin/make -f"\
+	"\n$(hash) Make config file for linker options, do not rename."\
+	"\n$(hash) The value of the variable must be LIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
+	"\nCLIBS = -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))"\
+	"\nINCLUDES =" >  $@
+
+generate-libdependancy-config-files: $(LIBCONFS)
+.PHONY:generate-libdependancy-config-files
+
+$(srcdir)%/$(LIBCONFIGFILE):
+	@echo -e "$(hash)!/bin/make -f"\
+	"\n$(hash) Make config file for library options, do not rename."\
+	"\n$(hash) The name of the variable must be CLIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
+	"\nCLIBS_$* ="\
+	"\nINCLUDES_$* ="\
+	"\n$(hash) Set this variable to true if you want a shared library for this variable"\
+	"\nSHARED_$* ="\
+	"\n$(hash) DO NOT modify below this line unless you know what you are doing.\n"\
+	"\nifndef buildir"\
+	"\n\$$(error buildir must be defined)"\
+	"\nendif"\
+	"\nifneq (\$$(strip \$$(SHARED_$*)),)"\
+	"\nSHAREDCOSTOM = true"\
+	"\nLIBS += \$$(buildir)lib$*.so"\
+	"\nelse"\
+	"\nLIBS += \$$(buildir)lib$*.a"\
+	"\nendif" > $@
+
 
 remove-testlibconf-file:
-	rm -f $(srcdir)libconfig.mk
+	rm -f $(srcdir)$(MAINCONFIG)
 .PHONY:generate-testlibconf-file
-
-generate-libdependancy-config-files:
-	@for file in $(LIBCONFS); do \
-		stem="$${file%/*}" ; \
-		stem="$${stem//$(srcdir)/}" ; \
-		stem="$${stem//\//}" ; \
-		echo -e "$(hash)!/usr/bin/make -f"\
-		"\n$(hash) Make config file for linker options, do not rename."\
-		"\n$(hash) The value of the variable must be LIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
-		"\nCLIBS_$${stem} ="\
-		"\nINCLUDES_$${stem} ="\
-		"\nCLIBS_DEP += \$$(filter-out \$$(CLIBS),\$$(CLIBS_$${stem}))\n" > "$$file"; \
-	done
-.PHONY:generate-libdependancy-config-files
 
 remove-libdependancy-config-files:
 	rm -f $(LIBCONFS)
