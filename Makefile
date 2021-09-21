@@ -73,7 +73,7 @@ OBJS      = $(patsubst %.c,%.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRC
 OBJS_S    = $(patsubst %.c,%-shared.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
-
+CLIBS_DEP :=
 LIBCONFS  = $(addsuffix $(LIBCONFIGFILE),$(SRCDIRS))
 -include $(LIBCONFS)
 ifdef SHARED
@@ -83,7 +83,6 @@ ifndef SHAREDCOSTOM
 LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
 endif
 endif
-CLIBS_DEP :=
 #=====================================================
 
 build: $(LIBS)
@@ -170,15 +169,13 @@ export SHARED
 #=====================================================
 
 ifndef CLIBS
-ifdef SHARED
-CLIBS = -L./$(buildir) $(addprefix -l,$(patsubst $(buildir)lib%.so,%,$(LIBS)))
-else
-CLIBS = -L./$(buildir) $(addprefix -l,$(patsubst $(buildir)lib%.a,%,$(LIBS)))
-endif
+CLIBS = -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))
 endif
 CLIBS += $(sort $(CLIBS_DEP))
-
 #============
+ifdef SHAREDCOSTOM
+$(buildir)$(prog_name): export SHARED = true
+endif
 ifneq ($(strip $(filter install install-bin,$(MAKECMDGOALS))),)
 export override INSTALLMODE = true
 $(buildir)$(prog_name) : $(LIBS) installmode $(MAIN_SRCS)
@@ -286,7 +283,7 @@ $(srcdir)$(MAINCONFIG):
 	@echo -e "$(hash)!/usr/bin/make -f"\
 	"\n$(hash) Make config file for linker options, do not rename."\
 	"\n$(hash) The value of the variable must be LIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
-	"\nCLIBS = -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))"\
+	"\nCLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))"\
 	"\nINCLUDES =" >  $@
 
 generate-libdependancy-config-files: $(LIBCONFS)
@@ -301,6 +298,7 @@ $(srcdir)%/$(LIBCONFIGFILE):
 	"\n$(hash) Set this variable to true if you want a shared library for this variable"\
 	"\nSHARED_$* ="\
 	"\n$(hash) DO NOT modify below this line unless you know what you are doing.\n"\
+	"\nCLIBS_DEP += \$$(filter-out \$$(CLIBS),\$$(CLIBS_$*))\n"\
 	"\nifndef buildir"\
 	"\n\$$(error buildir must be defined)"\
 	"\nendif"\
