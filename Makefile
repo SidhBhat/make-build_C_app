@@ -73,9 +73,11 @@ OBJS      = $(patsubst %.c,%.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRC
 OBJS_S    = $(patsubst %.c,%-shared.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
-CLIBS_DEP :=
+override CLIBS_DEP :=
 LIBCONFS  = $(addsuffix $(LIBCONFIGFILE),$(SRCDIRS))
+ifeq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),) 
 -include $(LIBCONFS)
+endif
 ifdef SHARED
 LIBS      = $(addprefix $(buildir),$(addsuffix .so,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
 else
@@ -158,20 +160,21 @@ build-obj-static: $(OBJS)
 build-obj-shared: $(OBJS_S)
 .PHONY:build-obj-shared
 
-
+ifeq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),)
 -include $(srcdir)$(MAINCONFIG)
+endif
+
+#=====================================================
+ifndef CLIBS
+override CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))
+endif
+override CLIBS += $(sort $(CLIBS_DEP))
 
 export CC CFLAGS INCLUDES RPATH CLIBS
 export INSTALL INSTALL_DATA INSTALL_PROGRAM
 export buildir srcdir
 export prog_name
 export SHARED
-#=====================================================
-
-ifndef CLIBS
-CLIBS = -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))
-endif
-CLIBS += $(sort $(CLIBS_DEP))
 #============
 ifdef SHAREDCOSTOM
 $(buildir)$(prog_name): export SHARED = true
@@ -279,15 +282,16 @@ remove-config-files: remove-libdependancy-config-files remove-testlibconf-file
 generate-testlibconf-file: $(srcdir)$(MAINCONFIG)
 .PHONY:generate-testlibconf-file
 
+generate-libdependancy-config-files: $(LIBCONFS)
+.PHONY:generate-libdependancy-config-files
+
+ifneq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),)
 $(srcdir)$(MAINCONFIG):
 	@echo -e "$(hash)!/usr/bin/make -f"\
 	"\n$(hash) Make config file for linker options, do not rename."\
 	"\n$(hash) The value of the variable must be LIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
-	"\nCLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))"\
-	"\nINCLUDES =" >  $@
-
-generate-libdependancy-config-files: $(LIBCONFS)
-.PHONY:generate-libdependancy-config-files
+	"\noverride CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))"\
+	"\noverride INCLUDES +=" >  $@
 
 $(srcdir)%/$(LIBCONFIGFILE):
 	@echo -e "$(hash)!/bin/make -f"\
@@ -308,7 +312,7 @@ $(srcdir)%/$(LIBCONFIGFILE):
 	"\nelse"\
 	"\nLIBS += \$$(buildir)lib$*.a"\
 	"\nendif" > $@
-
+endif
 
 remove-testlibconf-file:
 	rm -f $(srcdir)$(MAINCONFIG)
