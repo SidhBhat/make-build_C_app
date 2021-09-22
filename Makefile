@@ -76,7 +76,7 @@ MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),
 override CLIBS_DEP :=
 LIBCONFS  = $(addsuffix $(LIBCONFIGFILE),$(SRCDIRS))
 ifeq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),) 
--include $(LIBCONFS)
+-include $(LIBCONFS) $(srcdir)$(MAINCONFIG)
 endif
 ifdef SHARED
 LIBS      = $(addprefix $(buildir),$(addsuffix .so,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
@@ -85,6 +85,11 @@ ifndef SHAREDCOSTOM
 LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
 endif
 endif
+
+ifndef CLIBS
+override CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))
+endif
+override CLIBS += $(sort $(CLIBS_DEP))
 #=====================================================
 
 build: $(LIBS)
@@ -120,13 +125,19 @@ installmode:
 debug:
 	@echo -e "\e[35mBuild Directories \e[0m: $(DIRS)"
 	@echo -e "\e[35mSource Directories\e[0m: $(SRCDIRS)"
-	@echo -e "\e[35mLibdepconf Files  \e[0m: $(LIBCONFS)"
-	@echo -e "\e[35mBuild Files       \e[0m: $(LIBS)"
+	@echo -e "\e[35mLibconf Files     \e[0m: $(LIBCONFS)"
+	@echo -e "\e[35mGlobalconfig File \e[0m: $(srcdir)$(MAINCONFIG)"
+	@echo -e "\e[35mLibraries Files   \e[0m: $(LIBS)"
 	@echo    "#-------------------------------------------#"
-	@echo -e "\e[35mSource Files     \e[0m: $(SRCS) $(MAIN_SRCS)"
-	@echo -e "\e[35mMake Files       \e[0m: $(MKS)"
-	@echo -e "\e[35mMake Files Shared\e[0m: $(MKS_S)"	
-	@echo -e "\e[35mObject Files     \e[0m: $(OBJS)"
+	@echo -e "\e[35mSource Files        \e[0m: $(SRCS) $(MAIN_SRCS)"
+	@echo -e "\e[35mMake Files          \e[0m: $(MKS)"
+	@echo -e "\e[35mMake Files Shared   \e[0m: $(MKS_S)"
+	@echo -e "\e[35mObject Files        \e[0m: $(OBJS)"
+	@echo -e "\e[35mObject Shared Files\e[0m: $(OBJS_S)"
+	@echo -e "\e[35mCMD Goals \e[0m: $(MAKECMDGOALS)"
+	@echo -e "\e[35mMakeflags \e[0m: $(MAKEFLAGS)"
+	@echo -e "\e[35mClibs     \e[0m: $(CLIBS)"
+	@echo -e "\e[35mClibs DEP \e[0m: $(CLIBS_DEP)"
 .PHONY:debug
 
 help:
@@ -135,6 +146,7 @@ help:
 	@echo -e "\t...install-bin"
 	@echo -e "\t...install-libs"
 	@echo -e "\t...build*"
+	@echo -e "\t...build-obj"
 	@echo -e "\t...test"
 	@echo -e "\t...uninstall"
 	@echo -e "\t...uninstall-bin"
@@ -144,12 +156,21 @@ help:
 	@echo "Other options"
 	@echo -e "\t...debug"
 	@echo -e "\t...help"
-	@echo -e "\t...generate-config-file"
-	@echo -e "\t...remove-config-file"
+	@echo -e "\t...generate-config-files"
+	@echo -e "\t...remove-config-files"
+	@echo -e "\t...generate-libdependancy-config-files"
+	@echo -e "\t...generate-testlibconf-file"
+	@echo -e "\t...remove-libdependancy-config-files"
+	@echo -e "\t...remove-testlibconf-file"
+	@echo -e "\t...create-makes"
+	@echo -e "\t...create-makes-static"
+	@echo -e "\t...create-makes-shared"
+	@echo -e "\t...build-obj-static"
+	@echo -e "\t...build-obj-shared"
 .PHONY: help
 
 test: $(buildir)$(prog_name)
-.PHONY:test
+.PHONY: test
 
 build-obj: build-obj-static build-obj-shared ;
 .PHONY: build-obj
@@ -160,15 +181,7 @@ build-obj-static: $(OBJS)
 build-obj-shared: $(OBJS_S)
 .PHONY:build-obj-shared
 
-ifeq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),)
--include $(srcdir)$(MAINCONFIG)
-endif
-
 #=====================================================
-ifndef CLIBS
-override CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))
-endif
-override CLIBS += $(sort $(CLIBS_DEP))
 
 export CC CFLAGS INCLUDES RPATH CLIBS
 export INSTALL INSTALL_DATA INSTALL_PROGRAM
@@ -302,7 +315,7 @@ $(srcdir)%/$(LIBCONFIGFILE):
 	"\n$(hash) Set this variable to true if you want a shared library for this variable"\
 	"\nSHARED_$* ="\
 	"\n$(hash) DO NOT modify below this line unless you know what you are doing.\n"\
-	"\nCLIBS_DEP += \$$(filter-out \$$(CLIBS),\$$(CLIBS_$*))\n"\
+	"\noverride CLIBS_DEP += \$$(filter-out \$$(CLIBS),\$$(CLIBS_$*))\n"\
 	"\nifndef buildir"\
 	"\n\$$(error buildir must be defined)"\
 	"\nendif"\
