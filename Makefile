@@ -12,7 +12,7 @@ SHELL = /bin/bash
 # set this variable to any value to make shared libraries (cleaning existing build files may be necessary)
 SHARED =
 ifdef SHARED
-SHARED = true
+override SHARED = true
 endif
 
 #===================================================
@@ -49,208 +49,99 @@ override libdir      = $(prefix)/lib/
 #=======================================================
 prog_name = main
 #=======================================================
-override INSTALL          = install -D -p
-override INSTALL_PROGRAM  = $(INSTALL) -m 755
-override INSTALL_DATA     = $(INSTALL) -m 644
+INSTALL          = install -D -p
+INSTALL_PROGRAM  = $(INSTALL) -m 755
+INSTALL_DATA     = $(INSTALL) -m 644
 #=======================================================
 #Other files
 #=======================================================
-override LIBCONFIGFILE = config.mk
-override MAINCONFIG    = libconfig.mk
-override TIMESTAMP     = timestamp.txt
-#updating of COMPLIESTAMP instucts to recompile the file
-override COMPILESTAMP  = compilestamp.txt
+override libconfigfile = config.mk
+override mainconfig    = libconfig.mk
+override timestamp     = timestamp.txt
+#updating of COMPLIESTAMP instucts to recompile the executable
+override compilestamp  = compilestamp.txt
 #=======================================================
 # DO NOT MODIFY VARIABLES!
 #====================================================
 # Source and target objects
 #====================================================
-SRCS      = $(wildcard $(srcdir)*/*.c)
-MAIN_SRCS = $(wildcard $(srcdir)*.c)
-DIRS      = $(addprefix $(buildir),$(subst $(srcdir),,$(SRCDIRS)))
-SRCDIRS   = $(sort $(dir $(SRCS)))
-OBJS      = $(patsubst %.c,%.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
-OBJS_S    = $(patsubst %.c,%-shared.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
-MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
-MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+#Source files
+override SRCS      = $(wildcard $(srcdir)*/*.c)
+override MAIN_SRCS = $(wildcard $(srcdir)*.c)
+override SRCDIRS   = $(sort $(dir $(SRCS)))
+#build objects
+override BUILD_DIRS = $(addprefix $(buildir),$(subst $(srcdir),,$(SRCDIRS)))
+override OBJS       = $(patsubst %.c,%.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+override OBJS_S     = $(patsubst %.c,%-shared.c.o,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+#make files for build objects
+override MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+override MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+#Library config files
+override LIBCONFS    = $(addsuffix $(libconfigfile),$(SRCDIRS))
+override GLOBALCONFS = $(srcdir)$(mainconfig)
+#config varaiables
 override CLIBS_DEP :=
-LIBCONFS  = $(addsuffix $(LIBCONFIGFILE),$(SRCDIRS))
 ifeq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),) 
--include $(LIBCONFS) $(srcdir)$(MAINCONFIG)
+# read config variables
+-include $(LIBCONFS) $(GLOBALCONFS)
 endif
+#set the libraries to build 
 ifdef SHARED
-LIBS      = $(addprefix $(buildir),$(addsuffix .so,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
+override LIBS      = $(addprefix $(buildir),$(addsuffix .so,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))))
 else
 ifndef SHAREDCOSTOM
-LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(DIRS))))))
+override LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))))
 endif
 endif
-
+#set  C libraries to use while makeing executables
 ifndef CLIBS
-override CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))
+override CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))
 endif
 override CLIBS += $(sort $(CLIBS_DEP))
 #=====================================================
 
-build: $(LIBS)
+build:
 .PHONY:build
 
 .DEFUALT_GOAL:build
 
-install: install-libs install-bin
-.PHONY: install
-
-install-libs: LIB_FILES = $(addprefix $(DESTDIR)$(libdir),$(notdir $(LIBS)))
-install-libs: build
-	@for file in $(LIB_FILES); do \
-		[ -f "$$file" ] && { echo -e "\e[31mError\e[32m $$file exists Defualt behavior is not to overwrite...\e[0m Terminating..."; exit 23; } || true; \
-	done
-ifndef SHARED
-	$(INSTALL_DATA) $(LIBS) -t $(DESTDIR)$(libdir)
-else
-	$(INSTALL_PROGRAM) $(LIBS) -t $(DESTDIR)$(libdir)
-endif
-.PHONY: install
-
-install-bin: test
-	@[ -f "$(DESTDIR)$(bindir)$(prog_name)" ] && { echo -e "\e[31mError\e[32m $$file exists Defualt behavior is not to overwrite...\e[0m Terminating..."; exit 24; } || true
-	$(INSTALL_PROGRAM) $(buildir)$(prog_name) -t $(DESTDIR)$(bindir)
-.PHONY:install-bin
-
-#phony to go in install mode
-installmode:
-	rm -f $(buildir)$(COMPILESTAMP)
-.PHONY:installmode
-
 debug:
-	@echo -e "\e[35mBuild Directories \e[0m: $(DIRS)"
+	@echo -e "\e[35mBuild Directories \e[0m: $(BUILD_DIRS)"
 	@echo -e "\e[35mSource Directories\e[0m: $(SRCDIRS)"
 	@echo -e "\e[35mLibconf Files     \e[0m: $(LIBCONFS)"
-	@echo -e "\e[35mGlobalconfig File \e[0m: $(srcdir)$(MAINCONFIG)"
+	@echo -e "\e[35mGlobalconfig File \e[0m: $(GLOBALCONFS)"
 	@echo -e "\e[35mLibraries Files   \e[0m: $(LIBS)"
 	@echo    "#-------------------------------------------#"
-	@echo -e "\e[35mSource Files        \e[0m: $(SRCS) $(MAIN_SRCS)"
-	@echo -e "\e[35mMake Files          \e[0m: $(MKS)"
-	@echo -e "\e[35mMake Files Shared   \e[0m: $(MKS_S)"
-	@echo -e "\e[35mObject Files        \e[0m: $(OBJS)"
-	@echo -e "\e[35mObject Shared Files\e[0m: $(OBJS_S)"
+	@echo -e "\e[35mSource Library Files   \e[0m: $(SRCS)"
+	@echo -e "\e[35mSource Executable Files\e[0m: $(MAIN_SRCS)"
+	@echo -e "\e[35mMake Object Files          \e[0m: $(MKS)"
+	@echo -e "\e[35mMake Shared-Object Files   \e[0m: $(MKS_S)"
+	@echo -e "\e[35mObject Files           \e[0m: $(OBJS)"
+	@echo -e "\e[35mObject Shared Files    \e[0m: $(OBJS_S)"
 	@echo -e "\e[35mCMD Goals \e[0m: $(MAKECMDGOALS)"
 	@echo -e "\e[35mMakeflags \e[0m: $(MAKEFLAGS)"
 	@echo -e "\e[35mClibs     \e[0m: $(CLIBS)"
 	@echo -e "\e[35mClibs DEP \e[0m: $(CLIBS_DEP)"
 .PHONY:debug
 
-help:
-	@echo "The follwing targets may be given..."
-	@echo -e "\t...install"
-	@echo -e "\t...install-bin"
-	@echo -e "\t...install-libs"
-	@echo -e "\t...build*"
-	@echo -e "\t...build-obj"
-	@echo -e "\t...test"
-	@echo -e "\t...uninstall"
-	@echo -e "\t...uninstall-bin"
-	@echo -e "\t...uninstall-libs"
-	@echo -e "\t...clean"
-	@echo -e "\t...clean-all"
-	@echo "Other options"
-	@echo -e "\t...debug"
-	@echo -e "\t...help"
-	@echo -e "\t...generate-config-files"
-	@echo -e "\t...remove-config-files"
-	@echo -e "\t...generate-libdependancy-config-files"
-	@echo -e "\t...generate-testlibconf-file"
-	@echo -e "\t...remove-libdependancy-config-files"
-	@echo -e "\t...remove-testlibconf-file"
-	@echo -e "\t...create-makes"
-	@echo -e "\t...create-makes-static"
-	@echo -e "\t...create-makes-shared"
-	@echo -e "\t...build-obj-static"
-	@echo -e "\t...build-obj-shared"
-.PHONY: help
-
-test: $(buildir)$(prog_name)
-.PHONY: test
-
-build-obj: build-obj-static build-obj-shared ;
-.PHONY: build-obj
-
-build-obj-static: $(OBJS)
-.PHONY:build-obj-static
-
-build-obj-shared: $(OBJS_S)
-.PHONY:build-obj-shared
-
 #=====================================================
-
-export CC CFLAGS INCLUDES RPATH CLIBS
-export INSTALL INSTALL_DATA INSTALL_PROGRAM
-export buildir srcdir
-export prog_name
-export SHARED
+# export declarations
 #============
-ifdef SHAREDCOSTOM
-$(buildir)$(prog_name): export SHARED = true
-endif
-ifneq ($(strip $(filter install install-bin,$(MAKECMDGOALS))),)
-export override INSTALLMODE = true
-$(buildir)$(prog_name) : $(LIBS) installmode $(MAIN_SRCS)
-else
-export override INSTALLMODE =
-$(buildir)$(prog_name): COMPILESTAMP_TMP = $(buildir)$(COMPILESTAMP) $(addsuffix $(TIMESTAMP),$(DIRS))
-$(buildir)$(prog_name): $(LIBS) $(buildir)$(COMPILESTAMP) $(MAIN_SRCS)
-endif
-	$(MAKE) -e -f Makefile2 $(patsubst INSTALLSTAMP=%,,$(MAKEFLAGS)) COMPILESTAMP="$(COMPILESTAMP_TMP)"
-
-$(buildir)$(COMPILESTAMP): $(LIBS)
-	touch $@
-
+#target to build executable
 #============
+
+#disable builtin rules
+.SUFFIXES:
 
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
-	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(filter-out -pie -fpie -Fpie,$(CFLAGS)) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
+	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(filter-out -pie -fpie -Fpie -pic -fpic -Fpic,$$(CFLAGS)) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n\ttouch $(@D)/$(timestamp)\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
 $(buildir)%-shared.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
-	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) $(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*-shared.c.o $<\n\ttouch $(@D)/$(TIMESTAMP)\n") }' > $@
+	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(CFLAGS) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*-shared.c.o $<\n\ttouch $(@D)/$(timestamp)\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
-
-ifdef SHARED
-MAKE_BUILD_FILES=$(MKS_S)
-else
-ifndef SHAREDCOSTOM
-MAKE_BUILD_FILES=$(MKS)
-else
-MAKE_BUILD_FILES=$(MKS)	$(MKS_S)
-endif
-endif
-
-ifneq ($(strip $(filter build build-obj test install install-bin install-libs install $(buildir)$(prog_name) $(LIBS) $(OBJS),$(MAKECMDGOALS))),)
-include $(MAKE_BUILD_FILES)
-else ifeq ($(MAKECMDGOALS),)
-include $(MAKE_BUILD_FILES)
-endif
-
-lib%.a: %/$(TIMESTAMP) | $(buildir)
-	$(AR) $(ARFLAGS) $@ $(filter $*/%.o,$(OBJS)) $(if $(CLIBS_$(notdir $*)),-l"$(strip $(CLIBS_$(notdir $*)))")
-lib%.so: %/$(TIMESTAMP) | $(buildir)
-	$(CC) $(filter-out -pie -fpie -Fpie -pic -fpic -Fpic,$(CFLAGS)) --shared $(filter $*/%.o,$(OBJS_S)) $(strip $(CLIBS_$(notdir $*))) -o $@
-
-%/$(TIMESTAMP): $(buildir) ;
-
-.SECONDARY: $(addsuffix $(TIMESTAMP),$(DIRS))
-
-ifdef SHARED
-$(buildir): build-obj-shared ;
-else
-ifndef SHAREDCOSTOM
-$(buildir) : build-obj-static ;
-else
-$(buildir) : build-obj-static build-obj-shared;
-endif
-endif
 
 #=====================================================
 
@@ -272,41 +163,26 @@ clean:
 clean-all:clean remove-config-files
 .PHONY:clean-all
 
-#use with caution!
-uninstall-libs:
-	rm -f $(addprefix $(DESTDIR)$(libdir),$(notdir $(LIBS)))
-.PHONY:uninstall-libs
-
-#use with caution!
-uninstall-bin:
-	rm -f $(DESTDIR)$(bindir)$(prog_name)
-.PHONY:uninstall-bin
-
-#use with caution!
-uninstall:uninstall-bin uninstall-libs
-.PHONY:uninstall
+#config files
 
 generate-config-files: generate-libdependancy-config-files generate-testlibconf-file
 .PHONY:generate-config-files
 
-remove-config-files: remove-libdependancy-config-files remove-testlibconf-file
-.PHONY:remove-config-files
-
-generate-testlibconf-file: $(srcdir)$(MAINCONFIG)
+generate-testlibconf-file: $(GLOBALCONFS)
 .PHONY:generate-testlibconf-file
 
 generate-libdependancy-config-files: $(LIBCONFS)
 .PHONY:generate-libdependancy-config-files
 
 ifneq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),)
-$(srcdir)$(MAINCONFIG):
+$(GLOBALCONFS):
 	@echo -e "$(hash)!/usr/bin/make -f"\
 	"\n$(hash) Make config file for linker options, do not rename."\
 	"\n$(hash) The value of the variable must be LIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
-	"\noverride CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(DIRS))))"\
+	"\noverride CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))"\
 	"\noverride INCLUDES +=" >  $@
 
-$(srcdir)%/$(LIBCONFIGFILE):
+$(srcdir)%/$(libconfigfile):
 	@echo -e "$(hash)!/bin/make -f"\
 	"\n$(hash) Make config file for library options, do not rename."\
 	"\n$(hash) The name of the variable must be CLIBS_<libname>, where the libname is the stem of lib*.a, for it to be read by the makefile."\
@@ -320,15 +196,18 @@ $(srcdir)%/$(LIBCONFIGFILE):
 	"\n\$$(error buildir must be defined)"\
 	"\nendif"\
 	"\nifneq (\$$(strip \$$(SHARED_$*)),)"\
-	"\nSHAREDCOSTOM = true"\
-	"\nLIBS += \$$(buildir)lib$*.so"\
+	"\noverride SHAREDCOSTOM = true"\
+	"\noverride LIBS += \$$(buildir)lib$*.so"\
 	"\nelse"\
-	"\nLIBS += \$$(buildir)lib$*.a"\
+	"\noverride LIBS += \$$(buildir)lib$*.a"\
 	"\nendif" > $@
 endif
 
+remove-config-files: remove-libdependancy-config-files remove-testlibconf-file
+.PHONY:remove-config-files
+
 remove-testlibconf-file:
-	rm -f $(srcdir)$(MAINCONFIG)
+	rm -f $(GLOBALCONFS) 
 .PHONY:generate-testlibconf-file
 
 remove-libdependancy-config-files:
