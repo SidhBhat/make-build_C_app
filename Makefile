@@ -101,7 +101,7 @@ endif
 override CLIBS += $(sort $(CLIBS_DEP))
 #=====================================================
 
-build: $(LIBS)
+build: $(buildir)$(prog_name)
 .PHONY:build
 
 .DEFUALT_GOAL:build
@@ -113,18 +113,30 @@ debug:
 	@echo -e "\e[35mGlobalconfig File \e[0m: $(GLOBALCONFS)"
 	@echo -e "\e[35mLibraries Files   \e[0m: $(LIBS)"
 	@echo    "#-------------------------------------------#"
-	@echo -e "\e[35mSource Library Files   \e[0m: $(SRCS)"
-	@echo -e "\e[35mSource Executable Files\e[0m: $(MAIN_SRCS)"
+	@echo -e "\e[35mSource Library Files       \e[0m: $(SRCS)"
+	@echo -e "\e[35mSource Executable Files    \e[0m: $(MAIN_SRCS)"
 	@echo -e "\e[35mMake Object Files          \e[0m: $(MKS)"
 	@echo -e "\e[35mMake Shared-Object Files   \e[0m: $(MKS_S)"
-	@echo -e "\e[35mMake Library Files    \e[0m: $(MKSLIBS)"
-	@echo -e "\e[35mObject Files           \e[0m: $(OBJS)"
-	@echo -e "\e[35mObject Shared Files    \e[0m: $(OBJS_S)"
+	@echo -e "\e[35mMake Library Files         \e[0m: $(MKSLIBS)"
+	@echo -e "\e[35mObject Files               \e[0m: $(OBJS)"
+	@echo -e "\e[35mObject Shared Files        \e[0m: $(OBJS_S)"
 	@echo -e "\e[35mCMD Goals \e[0m: $(MAKECMDGOALS)"
 	@echo -e "\e[35mMakeflags \e[0m: $(MAKEFLAGS)"
 	@echo -e "\e[35mClibs     \e[0m: $(CLIBS)"
 	@echo -e "\e[35mClibs DEP \e[0m: $(CLIBS_DEP)"
 .PHONY:debug
+
+build-libs: $(LIBS)
+.PHONY: build-libs
+
+build-obj: build-obj-shared build-obj-static
+.PHONY: build-obj
+
+build-obj-shared: $(OBJS_S)
+.PHONY: build-obj-shared
+
+build-obj-static: $(OBJS)
+.PHONY: build-obj-static
 
 #=====================================================
 # export declarations
@@ -135,16 +147,19 @@ debug:
 #disable builtin rules
 .SUFFIXES:
 
+#makefiles to build object code
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
 	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(filter-out -pie -fpie -Fpie -pic -fpic -Fpic,$$(CFLAGS)) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n\ttouch $(@D)/$(timestamp)\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
+#makefiles to build position independant object code
 $(buildir)%-shared.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
 	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(CFLAGS) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*-shared.c.o $<\n\ttouch $(@D)/$(timestamp)\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
-	
+
+#makefiles to create the libraries
 $(buildir)lib%.mk : $(srcdir)%/
 	@mkdir -p $(@D)
 	@echo -e "ifdef SHARED"\
@@ -161,7 +176,16 @@ $(buildir)lib%.mk : $(srcdir)%/
 	"\n\$$(buildir)lib$*.a : \$$(filter \$$(buildir)$*/%.c.o ,\$$(OBJS))"\
 	"\n\t\$$(AR) \$$(ARFLAGS) \$$@ \$$^ \$$(if \$$(CLIBS_$*),-l\"\$$(sort \$$(CLIBS_$*))\")\n" > $@
 
+ifneq ($(strip $(filter build build-libs install% $(LIBS) $(buildir)$(prog_name) ,$(MAKECMDGOALS))),)
 include $(MKSLIBS)
+else
+ifeq ($(strip $(MAKECMDGOALS)),)
+include $(MKSLIBS)
+endif
+endif
+ifneq ($(strip $(filter build-obj%,$(MAKECMDGOALS))),)
+include $(MKS) $(MKS_S)
+endif
 #=====================================================
 
 hash = \#
@@ -229,7 +253,7 @@ remove-config-files: remove-libdependancy-config-files remove-testlibconf-file
 .PHONY:remove-config-files
 
 remove-testlibconf-file:
-	rm -f $(GLOBALCONFS) 
+	rm -f $(GLOBALCONFS)
 .PHONY:generate-testlibconf-file
 
 remove-libdependancy-config-files:

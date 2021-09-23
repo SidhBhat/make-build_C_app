@@ -17,7 +17,7 @@ char *ftobe(long double ld, char *str, unsigned short int n_digits, unsigned sho
 		return strcpy(str, "inf");
 	else if(ld == -INFINITY)
 		return strcpy(str, "-inf");
-	else if(__isnanl(ld))
+	else if(isnan(ld))
 		return strcpy(str, "nan");
 	//initialisations
 	(sign == -1) ? str[i++] = '-' : 0;
