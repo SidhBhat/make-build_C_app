@@ -57,7 +57,6 @@ INSTALL_DATA     = $(INSTALL) -m 644
 #=======================================================
 override libconfigfile = config.mk
 override mainconfig    = libconfig.mk
-override timestamp     = timestamp.txt
 #updating of COMPLIESTAMP instucts to recompile the executable
 override compilestamp  = compilestamp.txt
 #=======================================================
@@ -150,13 +149,13 @@ build-obj-static: $(OBJS)
 #makefiles to build object code
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
-	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(filter-out -pie -fpie -Fpie -pic -fpic -Fpic,$$(CFLAGS)) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n\ttouch $(@D)/$(timestamp)\n") }' > $@
+	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(filter-out -pie -fpie -Fpie -pic -fpic -Fpic,$$(CFLAGS)) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
 #makefiles to build position independant object code
 $(buildir)%-shared.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
-	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(CFLAGS) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*-shared.c.o $<\n\ttouch $(@D)/$(timestamp)\n") }' > $@
+	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(CFLAGS) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*-shared.c.o $<\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
 #makefiles to create the libraries
