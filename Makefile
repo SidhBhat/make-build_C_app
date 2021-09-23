@@ -76,6 +76,7 @@ override OBJS_S     = $(patsubst %.c,%-shared.c.o,$(addprefix $(buildir),$(subst
 #make files for build objects
 override MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 override MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
+override MKSLIBS   = $(addprefix $(buildir),$(addsuffix .mk,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))))
 #Library config files
 override LIBCONFS    = $(addsuffix $(libconfigfile),$(SRCDIRS))
 override GLOBALCONFS = $(srcdir)$(mainconfig)
@@ -85,12 +86,12 @@ ifeq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),)
 # read config variables
 -include $(LIBCONFS) $(GLOBALCONFS)
 endif
-#set the libraries to build 
+#set the libraries to build and their makefiles
 ifdef SHARED
-override LIBS      = $(addprefix $(buildir),$(addsuffix .so,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))))
+override LIBS = $(addprefix $(buildir),$(addsuffix .so,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))))
 else
 ifndef SHAREDCOSTOM
-override LIBS      = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))))
+override LIBS = $(addprefix $(buildir),$(addsuffix .a,$(addprefix lib,$(subst /,,$(subst $(buildir),,$(BUILD_DIRS))))))
 endif
 endif
 #set  C libraries to use while makeing executables
@@ -100,7 +101,7 @@ endif
 override CLIBS += $(sort $(CLIBS_DEP))
 #=====================================================
 
-build:
+build: $(LIBS)
 .PHONY:build
 
 .DEFUALT_GOAL:build
@@ -116,6 +117,7 @@ debug:
 	@echo -e "\e[35mSource Executable Files\e[0m: $(MAIN_SRCS)"
 	@echo -e "\e[35mMake Object Files          \e[0m: $(MKS)"
 	@echo -e "\e[35mMake Shared-Object Files   \e[0m: $(MKS_S)"
+	@echo -e "\e[35mMake Library Files    \e[0m: $(MKSLIBS)"
 	@echo -e "\e[35mObject Files           \e[0m: $(OBJS)"
 	@echo -e "\e[35mObject Shared Files    \e[0m: $(OBJS_S)"
 	@echo -e "\e[35mCMD Goals \e[0m: $(MAKECMDGOALS)"
@@ -142,7 +144,24 @@ $(buildir)%-shared.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
 	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(CFLAGS) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*-shared.c.o $<\n\ttouch $(@D)/$(timestamp)\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
+	
+$(buildir)lib%.mk : $(srcdir)%/
+	@mkdir -p $(@D)
+	@echo -e "ifdef SHARED"\
+	"\ninclude \$$(filter \$$(buildir)$*/%.mk,\$$(MKS_S))"\
+	"\nelse"\
+	"\nifneq (\$$(strip \$$(SHARED_$*)),)"\
+	"\ninclude \$$(filter \$$(buildir)$*/%.mk,\$$(MKS_S))"\
+	"\nelse"\
+	"\ninclude \$$(filter \$$(buildir)$*/%.mk,\$$(MKS))"\
+	"\nendif"\
+	"\nendif\n"\
+	"\n\$$(buildir)lib$*.so : \$$(filter \$$(buildir)$*/%.c.o ,\$$(OBJS_S))"\
+	"\n\t\$$(CC) \$$(filter-out -pic -fpic -Fpic -pie -fpie -Fpie,\$$(CFLAGS)) --shared \$$^ \$$(sort \$$(CLIBS_$*)) -o \$$@\n"\
+	"\n\$$(buildir)lib$*.a : \$$(filter \$$(buildir)$*/%.c.o ,\$$(OBJS))"\
+	"\n\t\$$(AR) \$$(ARFLAGS) \$$@ \$$^ \$$(if \$$(CLIBS_$*),-l\"\$$(sort \$$(CLIBS_$*))\")\n" > $@
 
+include $(MKSLIBS)
 #=====================================================
 
 hash = \#
@@ -155,6 +174,9 @@ create-makes-shared: $(MKS)
 
 create-makes-static: $(MKS_S)
 .PHONY:create-makes
+
+create-makes-libs: $(MKSLIBS)
+.PHONY: create-makes-libs
 
 clean:
 	rm -rf $(buildir)
