@@ -54,11 +54,11 @@ override buildir    = build/
 #======================================================
 DESTDIR     =
 prefix      = /usr/local/
-override exec_prefix = $(prefix)
+override exec_prefix = $(prefix)/
 override bindir      = $(exec_prefix)bin/
-override datarootdir = $(prefix)share/
+override datarootdir = $(prefix)/share/
 override datadir     = $(datarootdir)
-override libdir      = $(prefix)lib/
+override libdir      = $(prefix)/lib/
 #=======================================================
 prog_name = main
 #=======================================================
@@ -126,9 +126,33 @@ build: $(buildir)$(prog_name)
 .DEFUALT_GOAL:build
 
 # dummy install target
-install: build
-	@echo "Installing........"
+install: install-bin install-libs
 .PHONY:install
+
+install-bin: build
+	@[[ -f "$(DESTDIR)$(bindir)$(prog_name)" ]] && { echo -e "\e[31mError\e[0m Refusing to ovewrite existing file \"$(DESTDIR)$(bindir)$(prog_name)\"" ; exit 23; } || true;
+	$(INSTALL_PROGRAM) "$(buildir)$(prog_name)" -t "$(DESTDIR)$(bindir)"
+.PHONY: install-bin
+
+install-libs: LIB_STATIC = $(filter %.a,$(LIBS))
+install-libs: LIB_SHARED = $(filter %.so,$(LIBS))
+install-libs: libs = $(addprefix "$(DESTDIR)$(libdir)",$(notdir $(LIBS)))
+install-libs: build-libs
+	@for file in $(libs); do \
+		[[ -f "$$file" ]] && { echo -e "\e[31mError\e[0m Refusing to overwrite existing file \"$$file\""; exit 23; } || true; \
+	done
+ifndef SHARED
+ifdef SHAREDCOSTOM
+	$(INSTALL_PROGRAM) $(LIB_SHARED) -t "$(DESTDIR)$(libdir)"
+	$(INSTALL_DATA) $(LIB_STATIC) -t "$(DESTDIR)$(libdir)"
+else
+	$(INSTALL_DATA) $(LIBS) -t "$(DESTDIR)$(libdir)"	
+endif
+else
+	$(INSTALL_PROGRAM) $(LIBS) -t "$(DESTDIR)$(libdir)"
+endif
+
+.PHONY: install-libs
 
 debug:
 	@echo -e "\e[35mBuild Directories \e[0m: $(BUILD_DIRS)"
@@ -156,6 +180,37 @@ debug:
 	@echo    "#-------------------------------------------#"
 	$(MAKE) -e -C "$(CURDIR)" -f Makefile2 $(MAKEFLAGS) $(if $(SHAREDCOSTOM),SHARED="true") debug
 .PHONY:debug
+
+help:
+	@echo "The follwing targets may be given..."
+	@echo -e "\t...install"
+	@echo -e "\t...install-bin"
+	@echo -e "\t...install-libs"
+	@echo -e "\t...build*"
+	@echo -e "\t...build-libs"
+	@echo -e "\t...build-obj"
+	@echo -e "\t...build-obj-static"
+	@echo -e "\t...build-obj-shared"
+	@echo -e "\t...uninstall"
+	@echo -e "\t...uninstall-bin"
+	@echo -e "\t...uninstall-libs"
+	@echo -e "\t...clean"
+	@echo -e "\t...clean-all"
+	@echo "Other options"
+	@echo -e "\t...debug"
+	@echo -e "\t...help"
+	@echo -e "\t...create-makes"
+	@echo -e "\t...create-makes-libs"
+	@echo -e "\t...create-makes-static"
+	@echo -e "\t...create-makes-shared"
+	@echo "configuration file options"
+	@echo -e "\t...generate-config-files"
+	@echo -e "\t...generate-libdependancy-config-files"
+	@echo -e "\t...generate-testlibconf-file"
+	@echo -e "\t...remove-config-files"
+	@echo -e "\t...remove-libdependancy-config-files"
+	@echo -e "\t...remove-testlibconf-file"
+.PHONY: help
 
 build-libs: $(LIBS)
 .PHONY: build-libs
@@ -229,10 +284,23 @@ ifneq ($(strip $(filter build-obj%,$(MAKECMDGOALS))),)
 include $(MKS) $(MKS_S)
 endif
 #=====================================================
+#use with caution
+uninstall: uninstall-bin uninstall-libs
+.PHONY: uninstall
+
+#use with caution
+uninstall-bin:
+	rm "$(DESTDIR)$(bindir)$(prog_name)"
+.PHONY: uninstall-bin
+
+#use with caution
+uninstall-libs:
+	rm $(addprefix "$(DESTDIR)$(libdir)",$(notdir $(LIBS)))
+.PHONY:uninstall-libs
 
 hash = \#
 
-create-makes: create-makes-shared create-makes-static
+create-makes: create-makes-shared create-makes-static create-makes-libs
 .PHONY:create-makes
 
 create-makes-shared: $(MKS)
