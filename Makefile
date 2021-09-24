@@ -138,6 +138,7 @@ debug:
 	@echo -e "\e[35mMakeflags \e[0m: $(MAKEFLAGS)"
 	@echo -e "\e[35mClibs     \e[0m: $(CLIBS)"
 	@echo -e "\e[35mClibs DEP \e[0m: $(CLIBS_DEP)"
+	@echo -e "\e[35mTest Var  \e[0m: $(prog_name)"
 .PHONY:debug
 
 help:
