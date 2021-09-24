@@ -21,9 +21,6 @@ endif
 CC       = gcc
 CLIBS    =
 CFLAGS   = -g -O -Wall
-ifdef SHARED
-CFLAGS  += -fpic -fpie
-endif
 ifneq ($(strip $(filter install install-bin,$(MAKECMDGOALS))),)
 RPATH    = $(DESTDIR)$(libdir)
 else
@@ -34,6 +31,22 @@ ARFLAGS  = crs
 #======================================================
 # Build Directories
 #======================================================
+#Internal cflags
+#======================================================
+#error detection
+ifdef SHARED
+ifneq ($(strip $(filter -pie,$(CFLAGS))),)
+$(error -pie is for executable only do mot specify it for CFLAGS)
+endif
+endif
+#setting variables
+override cflags            := $(filter-out -pic -fpic -Fpic -FPIC -fPIC -pie -fpie -Fpie -FPIE -fpie,$(CFLAGS))
+override cflags_shared     := $(filter-out -fpie -Fpie -FPIE -fPIE,$(CFLAGS))
+ifeq ($(strip $(filter -fpic -Fpic -FPIC -fPIC,$(cflags_shared))),)
+override cflags_shared     += -fpic
+endif
+override cflags_shared_lib := $(cflags_shared) --shared
+#======================================================
 override srcdir     = src/
 override buildir    = build/
 #======================================================
@@ -42,10 +55,10 @@ override buildir    = build/
 DESTDIR     =
 prefix      = /usr/local/
 override exec_prefix = $(prefix)
-override bindir      = $(exec_prefix)/bin/
-override datarootdir = $(prefix)/share/
+override bindir      = $(exec_prefix)bin/
+override datarootdir = $(prefix)share/
 override datadir     = $(datarootdir)
-override libdir      = $(prefix)/lib/
+override libdir      = $(prefix)lib/
 #=======================================================
 prog_name = main
 #=======================================================
@@ -57,8 +70,8 @@ INSTALL_DATA     = $(INSTALL) -m 644
 #=======================================================
 override libconfigfile = config.mk
 override mainconfig    = libconfig.mk
-#updating of COMPLIESTAMP instucts to recompile the executable
-override compilestamp  = compilestamp.txt
+#updating of installstamp instucts to recompile the executable
+override installstamp  = installstamp.txt
 #=======================================================
 # DO NOT MODIFY VARIABLES!
 #====================================================
@@ -99,11 +112,23 @@ override CLIBS += -L./$(buildir) $(addprefix -l,$(subst /,,$(subst $(buildir),,$
 endif
 override CLIBS += $(sort $(CLIBS_DEP))
 #=====================================================
+# Exporting variables
+export CC CFLAGS INCLUDES RPATH CLIBS
+export INSTALL INSTALL_DATA INSTALL_PROGRAM
+export buildir srcdir
+export prog_name
+export SHARED
+#=====================================================
 
 build: $(buildir)$(prog_name)
 .PHONY:build
 
 .DEFUALT_GOAL:build
+
+# dummy install target
+install: build
+	@echo "Installing........"
+.PHONY:install
 
 debug:
 	@echo -e "\e[35mBuild Directories \e[0m: $(BUILD_DIRS)"
@@ -119,10 +144,17 @@ debug:
 	@echo -e "\e[35mMake Library Files         \e[0m: $(MKSLIBS)"
 	@echo -e "\e[35mObject Files               \e[0m: $(OBJS)"
 	@echo -e "\e[35mObject Shared Files        \e[0m: $(OBJS_S)"
+	@echo -e "\e[35mSHARED    \e[0m: $(SHARED)"
 	@echo -e "\e[35mCMD Goals \e[0m: $(MAKECMDGOALS)"
 	@echo -e "\e[35mMakeflags \e[0m: $(MAKEFLAGS)"
 	@echo -e "\e[35mClibs     \e[0m: $(CLIBS)"
 	@echo -e "\e[35mClibs DEP \e[0m: $(CLIBS_DEP)"
+	@echo -e "\e[35mCFLAGS     \e[0m: $(CFLAGS)"
+	@echo -e "\e[35mComputed cflags        \e[0m: $(cflags)"
+	@echo -e "\e[35mComputed cflags shared \e[0m: $(cflags_shared)"
+	@echo -e "\e[35mComputed cflags library\e[0m: $(cflags_shared_lib)"
+	@echo    "#-------------------------------------------#"
+	$(MAKE) -e -C "$(CURDIR)" -f Makefile2 $(MAKEFLAGS) $(if $(SHAREDCOSTOM),SHARED="true") debug
 .PHONY:debug
 
 build-libs: $(LIBS)
@@ -137,10 +169,21 @@ build-obj-shared: $(OBJS_S)
 build-obj-static: $(OBJS)
 .PHONY: build-obj-static
 
+installmode:
+	@rm -f $(buildir)$(installstamp)
+.PHONY: installmode
+
 #=====================================================
-# export declarations
-#============
-#target to build executable
+ifneq ($(strip $(filter install%,$(MAKECMDGOALS))),)
+export INSTALLMODE = true
+$(buildir)$(prog_name): installmode
+endif
+export COMPILESTAMP = $(LIBS) $(buildir)$(installstamp)
+$(buildir)$(prog_name): $(MAIN_SRCS) $(LIBS) $(buildir)$(installstamp)
+	$(MAKE) -e -C "$(CURDIR)" -f Makefile2 $(MAKEFLAGS) $(if $(SHAREDCOSTOM),SHARED="true") build
+
+$(buildir)$(installstamp):
+	touch $@
 #============
 
 #disable builtin rules
@@ -149,13 +192,13 @@ build-obj-static: $(OBJS)
 #makefiles to build object code
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
-	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(filter-out -pie -fpie -Fpie -pic -fpic -Fpic,$$(CFLAGS)) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*.c.o $<\n") }' > $@
+	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(cflags) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $$@ $$<\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
 #makefiles to build position independant object code
 $(buildir)%-shared.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
-	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(CFLAGS) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $(buildir)$*-shared.c.o $<\n") }' > $@
+	@$(CC) -M $< -MT $(buildir)$*-shared.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(cflags_shared) $$(INCLUDES_$(subst /,,$(dir $*))) -c -o $$@ $$<\n") }' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
 #makefiles to create the libraries
@@ -171,11 +214,11 @@ $(buildir)lib%.mk : $(srcdir)%/
 	"\nendif"\
 	"\nendif\n"\
 	"\n\$$(buildir)lib$*.so : \$$(filter \$$(buildir)$*/%.c.o ,\$$(OBJS_S))"\
-	"\n\t\$$(CC) \$$(filter-out -pic -fpic -Fpic -pie -fpie -Fpie,\$$(CFLAGS)) --shared \$$^ \$$(sort \$$(CLIBS_$*)) -o \$$@\n"\
+	"\n\t\$$(CC) \$$(cflags_shared_lib) \$$^ \$$(sort \$$(CLIBS_$*)) -o \$$@\n"\
 	"\n\$$(buildir)lib$*.a : \$$(filter \$$(buildir)$*/%.c.o ,\$$(OBJS))"\
 	"\n\t\$$(AR) \$$(ARFLAGS) \$$@ \$$^ \$$(if \$$(CLIBS_$*),-l\"\$$(sort \$$(CLIBS_$*))\")\n" > $@
 
-ifneq ($(strip $(filter build build-libs install% $(LIBS) $(buildir)$(prog_name) ,$(MAKECMDGOALS))),)
+ifneq ($(strip $(filter build build-libs install% $(LIBS) $(buildir)$(prog_name),$(MAKECMDGOALS))),)
 include $(MKSLIBS)
 else
 ifeq ($(strip $(MAKECMDGOALS)),)
