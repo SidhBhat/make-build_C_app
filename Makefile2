@@ -10,8 +10,11 @@
 
 SHELL = /bin/bash
 
-# set this variable to any value to make shared libraries (cleaning existing build files may be necessary)
+# set this variable to any value to include shared libraries
 SHARED =
+ifdef SHARED
+override SHARED = true
+endif
 
 #===================================================
 # Compile commands
@@ -19,12 +22,24 @@ SHARED =
 CC       = gcc
 CLIBS    =
 CFLAGS   = -g -O -Wall
-ifdef SHARED
-CFLAGS  += -fpic -fpie
-endif
 INCLUDES =
 ifdef SHARED
 RPATH    =
+endif
+#====================================================
+# set cflags and cflags_exec
+ifdef SHARED
+ifneq ($(strip $(filter -pie,$(CFLAGS))),)
+$(error -pie is for executable only do mot specify it for CFLAGS)
+endif
+override cflags := $(filter-out -pic -fpic -Fpic -FPIC -fPIC,$(CFLAGS))
+ifeq ($(strip $(filter -fpie -Fpie -FPIE -fPIE,$(cflags))),)
+override cflags += -fpie
+endif
+override cflags_exec := $(cflags) -pie
+else
+override cflags := $(filter-out -pic -fpic -Fpic -FPIC -fPIC -pie -fpie -Fpie -FPIE -fpie,$(CFLAGS))
+override cflags_exec := $(cflags)
 endif
 #===================================================
 # Build Directories
@@ -32,28 +47,32 @@ endif
 srcdir     = src/
 buildir    = build/
 #===================================================
-prog_name = main
+ prog_name = mainc
 #===================================================
 # Source and target objects
 #===================================================
-SRCS      = $(wildcard $(srcdir)*.c)
-OBJS      = $(patsubst $(srcdir)%.c,$(buildir)%.c.o,$(SRCS))
-MKS       = $(patsubst $(srcdir)%.c,$(buildir)%.mk,$(SRCS))
+override SRCS      = $(wildcard $(srcdir)*.c)
+override OBJS      = $(patsubst $(srcdir)%.c,$(buildir)%.c.o,$(SRCS))
+override MKS       = $(patsubst $(srcdir)%.c,$(buildir)%.mk,$(SRCS))
 #=====================================================
 
 build: $(buildir)$(prog_name)
 .PHONY: build
 
 debug:
-	@echo -e "\e[35mBuild Directories \e[0m: $(DIRS)"
-	@echo -e "\e[35mSource Directories\e[0m: $(SRCDIRS)"
-	@echo -e "\e[35mLibdepconf Files  \e[0m: $(LIBCONFS)"
-	@echo -e "\e[35mBuild Files       \e[0m: $(LIBS)"
 	@echo    "#-------------------------------------------#"
 	@echo -e "\e[35mSource Files     \e[0m: $(SRCS)"
 	@echo -e "\e[35mMake Files       \e[0m: $(MKS)"
 	@echo -e "\e[35mObject Files     \e[0m: $(OBJS)"
-	@echo -e "\e[35mmakeflages;makegoals\e[0m:$(MAKEFLAGS) ; $(MAKECMDGOALS)"
+	@echo -e "\e[35mSHARED     \e[0m: $(SHARED)"
+	@echo -e "\e[35mCMD Goals  \e[0m: $(MAKECMDGOALS)"
+	@echo -e "\e[35mMakeflags  \e[0m: $(MAKEFLAGS)"
+	@echo -e "\e[35mClibs      \e[0m: $(CLIBS)"
+	@echo -e "\e[35mCFLAGS     \e[0m: $(CFLAGS)"
+	@echo -e "\e[35mComputed cflags     \e[0m: $(cflags)"
+	@echo -e "\e[35mComputed cflags_exec\e[0m: $(cflags_exec)"
+	@echo -e "\e[35mClibs      \e[0m: $(CLIBS)"
+	@echo -e "\e[35mTest Var   \e[0m: $(prog_name)"
 .PHONY:debug
 
 empty:
@@ -64,31 +83,31 @@ empty:
 ifdef INSTALLMODE
 $(buildir)$(prog_name): $(OBJS) empty
 else
+# any file in COMPILESTAMP is changed they will cause a recompile
 $(buildir)$(prog_name): $(OBJS) $(COMPILESTAMP)
 endif
-ifndef SHARED
-	$(CC) $(CFLAGS) -o $@ $(INCLUDES) $(OBJS) $(CLIBS)
+ifdef SHARED
+	$(CC) $(cflags_exec) -o $@ $(INCLUDES) -Wl,-rpath="$(RPATH)" $(OBJS) $(CLIBS)
 else
-	$(CC) $(filter-out -pic -fpic -Fpic,$(CFLAGS)) -o $@ $(INCLUDES) -Wl,-rpath="$(RPATH)" $(OBJS) $(CLIBS)
+	$(CC) $(cflags_exec) -o $@ $(INCLUDES) $(OBJS) $(CLIBS)
 endif
 
+# rule to create build make files
 $(buildir)%.mk : $(srcdir)%.c
 	@mkdir -p $(@D)
-ifndef SHARED
-	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(CFLAGS) -c -o $(buildir)$*.c.o $<")}' > $@
-else
-	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$(CC) $(filter-out -Fpie -fpie -pie -pic -fpic -Fpic,$(CFLAGS)) -c -o $(buildir)$*.c.o $<")}' > $@
-endif
+	@$(CC) -M $< -MT $(buildir)$*.c.o | awk '{ print $$0 } END { printf("\t$$(CC) $$(cflags) -c -o $$@ $$<")}' > $@
 	@echo -e "\e[32mCreating Makefile \"$@\"\e[0m..."
 
 ifneq ($(strip $(filter build $(buildir)$(prog_name) $(OBJS),$(MAKECMDGOALS))),)
 include $(MKS)
-else ifeq ($(MAKECMDGOALS),)
+else
+ifeq ($(MAKECMDGOALS),)
 include $(MKS)
+endif
 endif
 
 #=====================================================
 
 clean:
-	rm -f $(buildir)
+	rm -rf $(buildir)
 .PHONY:clean

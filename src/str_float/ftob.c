@@ -17,7 +17,7 @@ char *ftob(long double ld, char *str, unsigned short int n_digits, unsigned shor
 		return strcpy(str, "inf");
 	else if(ld == -INFINITY)
 		return strcpy(str, "-inf");
-	else if(__isnanl(ld))
+	else if(isnan	(ld))
 		return strcpy(str, "nan");
 	//initialisations
 	(sign == -1) ? str[i++] = '-' : 0;
