@@ -75,7 +75,7 @@ MKS       = $(patsubst %.c,%.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS
 MKS_S     = $(patsubst %.c,%-shared.mk,$(addprefix $(buildir),$(subst $(srcdir),,$(SRCS))))
 override CLIBS_DEP :=
 LIBCONFS  = $(addsuffix $(LIBCONFIGFILE),$(SRCDIRS))
-ifeq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),) 
+ifeq ($(strip $(filter generate% remove%,$(MAKECMDGOALS))),)
 -include $(LIBCONFS) $(srcdir)$(MAINCONFIG)
 endif
 ifdef SHARED
@@ -110,7 +110,7 @@ ifndef SHARED
 else
 	$(INSTALL_PROGRAM) $(LIBS) -t $(DESTDIR)$(libdir)
 endif
-.PHONY: install
+.PHONY: install-libs
 
 install-bin: test
 	@[ -f "$(DESTDIR)$(bindir)$(prog_name)" ] && { echo -e "\e[31mError\e[32m $$file exists Defualt behavior is not to overwrite...\e[0m Terminating..."; exit 24; } || true
@@ -139,6 +139,7 @@ debug:
 	@echo -e "\e[35mClibs     \e[0m: $(CLIBS)"
 	@echo -e "\e[35mClibs DEP \e[0m: $(CLIBS_DEP)"
 	@echo -e "\e[35mTest Var  \e[0m: $(prog_name)"
+	$(MAKE) -C "$(CURDIR)" -e -f Makefile2 debug
 .PHONY:debug
 
 help:
