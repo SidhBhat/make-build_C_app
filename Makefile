@@ -21,6 +21,7 @@ endif
 CC       = gcc
 CLIBS    =
 CFLAGS   = -g -O -Wall
+RPATH    =
 ifneq ($(strip $(filter install install-bin,$(MAKECMDGOALS))),)
 RPATH    = $(DESTDIR)$(libdir)
 else
@@ -28,8 +29,6 @@ RPATH    = $(buildir)
 endif
 AR       = ar
 ARFLAGS  = crs
-#======================================================
-# Build Directories
 #======================================================
 #Internal cflags
 #======================================================
@@ -46,6 +45,8 @@ ifeq ($(strip $(filter -fpic -Fpic -FPIC -fPIC,$(cflags_shared))),)
 override cflags_shared     += -fpic
 endif
 override cflags_shared_lib := $(cflags_shared) --shared
+#======================================================
+# Build Directories
 #======================================================
 override srcdir     = src/
 override buildir    = build/
@@ -125,7 +126,6 @@ build: $(buildir)$(prog_name)
 
 .DEFUALT_GOAL:build
 
-# dummy install target
 install: install-bin install-libs
 .PHONY:install
 
@@ -173,11 +173,11 @@ debug:
 	@echo -e "\e[35mMakeflags \e[0m: $(MAKEFLAGS)"
 	@echo -e "\e[35mClibs     \e[0m: $(CLIBS)"
 	@echo -e "\e[35mClibs DEP \e[0m: $(CLIBS_DEP)"
-	@echo -e "\e[35mTest Var  \e[0m: $(prog_name)"
-	@echo -e "\e[35mCFLAGS     \e[0m: $(CFLAGS)"
+	@echo -e "\e[35mCFLAGS    \e[0m: $(CFLAGS)"
 	@echo -e "\e[35mComputed cflags        \e[0m: $(cflags)"
 	@echo -e "\e[35mComputed cflags shared \e[0m: $(cflags_shared)"
 	@echo -e "\e[35mComputed cflags library\e[0m: $(cflags_shared_lib)"
+	@echo -e "\e[35mTest Var  \e[0m: $(prog_name)"
 	@echo    "#-------------------------------------------#"
 	$(MAKE) -e -C "$(CURDIR)" -f Makefile2 $(MAKEFLAGS) $(if $(SHAREDCOSTOM),SHARED="true") debug
 .PHONY:debug
@@ -225,6 +225,7 @@ build-obj-shared: $(OBJS_S)
 build-obj-static: $(OBJS)
 .PHONY: build-obj-static
 
+#phony to go in install mode
 installmode:
 	@rm -f $(buildir)$(installstamp)
 .PHONY: installmode
@@ -274,6 +275,7 @@ $(buildir)lib%.mk : $(srcdir)%/
 	"\n\$$(buildir)lib$*.a : \$$(filter \$$(buildir)$*/%.c.o ,\$$(OBJS))"\
 	"\n\t\$$(AR) \$$(ARFLAGS) \$$@ \$$^ \$$(if \$$(CLIBS_$*),-l\"\$$(sort \$$(CLIBS_$*))\")\n" > $@
 
+# include ilbrary make files
 ifneq ($(strip $(filter build build-libs install% $(LIBS) $(buildir)$(prog_name),$(MAKECMDGOALS))),)
 include $(MKSLIBS)
 else
@@ -281,6 +283,8 @@ ifeq ($(strip $(MAKECMDGOALS)),)
 include $(MKSLIBS)
 endif
 endif
+
+# include object make files
 ifneq ($(strip $(filter build-obj%,$(MAKECMDGOALS))),)
 include $(MKS) $(MKS_S)
 endif

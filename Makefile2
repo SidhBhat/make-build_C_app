@@ -7,7 +7,6 @@
 
 
 #===================================================
-
 SHELL = /bin/bash
 
 # set this variable to any value to include shared libraries
@@ -32,13 +31,13 @@ ifdef SHARED
 ifneq ($(strip $(filter -pie,$(CFLAGS))),)
 $(error -pie is for executable only do mot specify it for CFLAGS)
 endif
-override cflags := $(filter-out -pic -fpic -Fpic -FPIC -fPIC,$(CFLAGS))
+override cflags      := $(filter-out -pic -fpic -Fpic -FPIC -fPIC,$(CFLAGS))
 ifeq ($(strip $(filter -fpie -Fpie -FPIE -fPIE,$(cflags))),)
-override cflags += -fpie
+override cflags      += -fpie
 endif
 override cflags_exec := $(cflags) -pie
 else
-override cflags := $(filter-out -pic -fpic -Fpic -FPIC -fPIC -pie -fpie -Fpie -FPIE -fpie,$(CFLAGS))
+override cflags      := $(filter-out -pic -fpic -Fpic -FPIC -fPIC -pie -fpie -Fpie -FPIE -fpie,$(CFLAGS))
 override cflags_exec := $(cflags)
 endif
 #===================================================
@@ -47,7 +46,7 @@ endif
 srcdir     = src/
 buildir    = build/
 #===================================================
- prog_name = mainc
+prog_name = mainc
 #===================================================
 # Source and target objects
 #===================================================
@@ -75,15 +74,14 @@ debug:
 	@echo -e "\e[35mTest Var   \e[0m: $(prog_name)"
 .PHONY:debug
 
-empty:
+empty: ;
 .PHONY: empty
 
 #=====================================================
-
 ifdef INSTALLMODE
 $(buildir)$(prog_name): $(OBJS) empty
 else
-# any file in COMPILESTAMP is changed they will cause a recompile
+# if any file in COMPILESTAMP is changed they will cause a recompile
 $(buildir)$(prog_name): $(OBJS) $(COMPILESTAMP)
 endif
 ifdef SHARED
