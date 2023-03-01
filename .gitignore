@@ -4,11 +4,3 @@
 *.so
 #build directory
 build/
-#subdirectories of subdirectories of source
-/src/*/**/
-
-#ignore the version log
-/versionlog.txt
-
-#generated config files
-/src/**/*.mk
